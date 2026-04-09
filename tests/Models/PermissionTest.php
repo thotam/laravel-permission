@@ -67,3 +67,52 @@ it('does not treat string "0" as empty when giving permission', function () {
 
     expect($this->testUser->hasPermissionTo('0'))->toBeTrue();
 });
+
+// --- updateOrCreate ---
+
+it('creates a new permission with updateOrCreate when it does not exist', function () {
+    $permission = app(Permission::class)::updateOrCreate([
+        'name'        => 'new-permission',
+        'guard_name'  => 'web',
+        'description' => 'Mô tả mới',
+    ]);
+
+    expect($permission)->toBeInstanceOf(app(Permission::class)::class);
+    expect($permission->name)->toBe('new-permission');
+    expect($permission->description)->toBe('Mô tả mới');
+    expect($permission->exists)->toBeTrue();
+});
+
+it('updates an existing permission with updateOrCreate', function () {
+    $original = app(Permission::class)->create(['name' => 'existing-permission']);
+
+    $updated = app(Permission::class)::updateOrCreate([
+        'name'        => 'existing-permission',
+        'guard_name'  => 'web',
+        'description' => 'Đã cập nhật',
+    ]);
+
+    expect($updated->id)->toBe($original->id);
+    expect($updated->description)->toBe('Đã cập nhật');
+    expect(app(Permission::class)->where('name', 'existing-permission')->count())->toBe(1);
+});
+
+it('restores a soft-deleted permission with updateOrCreate', function () {
+    $permission = app(Permission::class)->create(['name' => 'deleted-permission']);
+    $permissionId = $permission->id;
+    $permission->delete(); // soft delete
+
+    // Scope mặc định lọc ra → không thấy
+    expect(app(Permission::class)->where('name', 'deleted-permission')->exists())->toBeFalse();
+
+    $restored = app(Permission::class)::updateOrCreate([
+        'name'        => 'deleted-permission',
+        'guard_name'  => 'web',
+        'description' => 'Đã khôi phục',
+    ]);
+
+    expect($restored->id)->toBe($permissionId);
+    expect($restored->deleted_at)->toBeNull();
+    expect($restored->description)->toBe('Đã khôi phục');
+    expect(app(Permission::class)->where('name', 'deleted-permission')->exists())->toBeTrue();
+});

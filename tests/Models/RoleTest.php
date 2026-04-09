@@ -228,3 +228,58 @@ it('does not treat string "0" as empty when assigning role', function () {
 
     expect($this->testUser->hasRole('0'))->toBeTrue();
 });
+
+// --- updateOrCreate ---
+
+it('creates a new role with updateOrCreate when it does not exist', function () {
+    $role = app(Role::class)::updateOrCreate([
+        'name'        => 'new-role',
+        'guard_name'  => 'web',
+        'description' => 'Mô tả mới',
+    ]);
+
+    expect($role)->toBeInstanceOf(app(Role::class)::class);
+    expect($role->name)->toBe('new-role');
+    expect($role->description)->toBe('Mô tả mới');
+    expect($role->exists)->toBeTrue();
+});
+
+it('updates an existing role with updateOrCreate', function () {
+    $original = app(Role::class)->create(['name' => 'existing-role']);
+
+    $updated = app(Role::class)::updateOrCreate([
+        'name'        => 'existing-role',
+        'guard_name'  => 'web',
+        'description' => 'Đã cập nhật',
+    ]);
+
+    expect($updated->id)->toBe($original->id);
+    expect($updated->description)->toBe('Đã cập nhật');
+    expect(app(Role::class)->where('name', 'existing-role')->count())->toBe(1);
+});
+
+it('restores a soft-deleted role with updateOrCreate', function () {
+    $role = app(Role::class)->create(['name' => 'deleted-role']);
+    $roleId = $role->id;
+    $role->delete(); // soft delete
+
+    // Scope mặc định lọc ra → không thấy
+    expect(app(Role::class)->where('name', 'deleted-role')->exists())->toBeFalse();
+
+    $restored = app(Role::class)::updateOrCreate([
+        'name'        => 'deleted-role',
+        'guard_name'  => 'web',
+        'description' => 'Đã khôi phục',
+    ]);
+
+    expect($restored->id)->toBe($roleId);
+    expect($restored->deleted_at)->toBeNull();
+    expect($restored->description)->toBe('Đã khôi phục');
+    expect(app(Role::class)->where('name', 'deleted-role')->exists())->toBeTrue();
+});
+
+it('uses default guard_name with updateOrCreate when not specified', function () {
+    $role = app(Role::class)::updateOrCreate(['name' => 'auto-guard-role']);
+
+    expect($role->guard_name)->toBe($this->app['config']->get('auth.defaults.guard'));
+});
