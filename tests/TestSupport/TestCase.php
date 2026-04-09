@@ -96,6 +96,23 @@ class TestCase extends Orchestra
     protected function getEnvironmentSetUp($app)
     {
         Model::preventLazyLoading();
+
+        // Đăng ký Blueprint macros cho migration stub (hrstamps/system)
+        // Bỏ qua foreign key sang bảng hrs vì không tồn tại trong SQLite test
+        Blueprint::macro('hrstamps', function (bool $foreign = true) {
+            $this->unsignedBigInteger('created_by')->nullable()->default(null);
+            $this->unsignedBigInteger('updated_by')->nullable()->default(null);
+            $this->unsignedBigInteger('deleted_by')->nullable()->default(null);
+            $this->string('created_key', 20)->nullable()->default(null);
+            $this->string('updated_key', 20)->nullable()->default(null);
+            $this->string('deleted_key', 20)->nullable()->default(null);
+            // Bỏ foreign key trong môi trường test (bảng hrs không tồn tại)
+        });
+
+        Blueprint::macro('system', function () {
+            return $this->string('system', 100)->nullable()->default(null);
+        });
+
         $app['config']->set('permission.register_permission_check_method', true);
         $app['config']->set('permission.teams', false);
         $app['config']->set('permission.testing', true); // fix sqlite
@@ -260,14 +277,8 @@ class TestCase extends Orchestra
 
         self::$customMigration->up();
 
-        $schema = $this->app['db']->connection()->getSchemaBuilder();
-
-        $schema->table(config('permission.table_names.roles'), function (Blueprint $table) {
-            $table->softDeletes();
-        });
-        $schema->table(config('permission.table_names.permissions'), function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        // Không cần thêm softDeletes() thủ công — migration gốc đã có sẵn
+        // (create_permission_tables.php.stub đã gọi ->softDeletes() cho cả roles và permissions)
 
         $registrar->initializeCache();
 

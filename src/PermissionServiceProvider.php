@@ -159,7 +159,7 @@ class PermissionServiceProvider extends PackageServiceProvider
                 ->keys()
                 ->whenEmpty(fn (Collection $collection) => $collection->push('Default'))
                 ->join(', '),
-            'Version' => InstalledVersions::getPrettyVersion('spatie/laravel-permission'),
+            'Version' => InstalledVersions::getPrettyVersion('thotam/laravel-permission'),
         ]);
     }
 }
