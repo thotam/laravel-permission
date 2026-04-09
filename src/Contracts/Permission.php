@@ -40,4 +40,10 @@ interface Permission
      * Find or Create a permission by its name and guard name.
      */
     public static function findOrCreate(string $name, ?string $guardName): self;
+
+    /**
+     * Update or create a permission by its name and guard name.
+     * Key: name + guard_name. Remaining attributes are used as fill values.
+     */
+    public static function updateOrCreate(array $attributes): self;
 }

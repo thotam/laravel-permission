@@ -76,6 +76,30 @@ class Permission extends Model implements PermissionContract
     }
 
     /**
+     * Update or create a permission by its name and guard name.
+     * Key: name + guard_name. Remaining attributes are used as fill values.
+     *
+     * @return PermissionContract|Permission
+     */
+    public static function updateOrCreate(array $attributes = []): PermissionContract
+    {
+        $attributes['guard_name'] ??= Guard::getDefaultName(static::class);
+
+        $keys = ['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']];
+        $values = array_diff_key($attributes, $keys);
+
+        // withTrashed() để updateOrCreate tìm cả record đã xóa mềm
+        $permission = static::query()->withTrashed()->updateOrCreate($keys, $values);
+
+        // Nếu record đang bị xóa mềm thì khôi phục lại
+        if ($permission->trashed()) {
+            $permission->restore();
+        }
+
+        return $permission;
+    }
+
+    /**
      * A permission can be applied to roles.
      */
     public function roles(): BelongsToMany

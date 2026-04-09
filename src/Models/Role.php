@@ -90,6 +90,41 @@ class Role extends Model implements RoleContract
     }
 
     /**
+     * Update or create a role by its name and guard name.
+     * Key: name + guard_name (+ team_foreign_key khi teams bật).
+     * Remaining attributes are used as fill values.
+     *
+     * @return RoleContract|Role
+     */
+    public static function updateOrCreate(array $attributes = []): RoleContract
+    {
+        $attributes['guard_name'] ??= Guard::getDefaultName(static::class);
+
+        $keys = ['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']];
+
+        $registrar = app(PermissionRegistrar::class);
+
+        if ($registrar->teams) {
+            $teamsKey = $registrar->teamsKey;
+            $keys[$teamsKey] = array_key_exists($teamsKey, $attributes)
+                ? $attributes[$teamsKey]
+                : getPermissionsTeamId();
+        }
+
+        $values = array_diff_key($attributes, $keys);
+
+        // withTrashed() để updateOrCreate tìm cả record đã xóa mềm
+        $role = static::query()->withTrashed()->updateOrCreate($keys, $values);
+
+        // Nếu record đang bị xóa mềm thì khôi phục lại
+        if ($role->trashed()) {
+            $role->restore();
+        }
+
+        return $role;
+    }
+
+    /**
      * A role may be given various permissions.
      */
     public function permissions(): BelongsToMany

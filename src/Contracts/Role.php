@@ -43,6 +43,13 @@ interface Role
     public static function findOrCreate(string $name, ?string $guardName): self;
 
     /**
+     * Update or create a role by its name and guard name.
+     * Key: name + guard_name (+ team_foreign_key khi teams bật).
+     * Remaining attributes are used as fill values.
+     */
+    public static function updateOrCreate(array $attributes): self;
+
+    /**
      * Determine if the user may perform the given permission.
      */
     public function hasPermissionTo(string|int|Permission|BackedEnum $permission, ?string $guardName = null): bool;
