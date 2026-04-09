@@ -30,8 +30,8 @@ return new class extends Migration
                 $table->unsignedBigInteger($columnNames['team_foreign_key'])->nullable()->after('id');
                 $table->index($columnNames['team_foreign_key'], 'roles_team_foreign_key_index');
 
-                $table->dropUnique('roles_name_guard_name_unique');
-                $table->unique([$columnNames['team_foreign_key'], 'name', 'guard_name']);
+                $table->dropUnique('roles_name_guard_name_system_unique');
+                $table->unique([$columnNames['team_foreign_key'], 'name', 'guard_name', 'system']);
             });
         }
 
@@ -45,8 +45,10 @@ return new class extends Migration
                 }
                 $table->dropPrimary();
 
-                $table->primary([$columnNames['team_foreign_key'], $pivotPermission, $columnNames['model_morph_key'], 'model_type'],
-                    'model_has_permissions_permission_model_type_primary');
+                $table->primary(
+                    [$columnNames['team_foreign_key'], $pivotPermission, $columnNames['model_morph_key'], 'model_type'],
+                    'model_has_permissions_permission_model_type_primary'
+                );
                 if (DB::getDriverName() !== 'sqlite') {
                     $table->foreign($pivotPermission)
                         ->references('id')
@@ -66,8 +68,10 @@ return new class extends Migration
                 }
                 $table->dropPrimary();
 
-                $table->primary([$columnNames['team_foreign_key'], $pivotRole, $columnNames['model_morph_key'], 'model_type'],
-                    'model_has_roles_role_model_type_primary');
+                $table->primary(
+                    [$columnNames['team_foreign_key'], $pivotRole, $columnNames['model_morph_key'], 'model_type'],
+                    'model_has_roles_role_model_type_primary'
+                );
                 if (DB::getDriverName() !== 'sqlite') {
                     $table->foreign($pivotRole)
                         ->references('id')

@@ -2,9 +2,12 @@
 
 namespace Spatie\Permission\Models;
 
+use App\Models\Traits\Hrstamps;
+use App\Models\Traits\Systems;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Permission\Contracts\Permission as PermissionContract;
 use Spatie\Permission\Exceptions\PermissionAlreadyExists;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
@@ -26,6 +29,9 @@ class Permission extends Model implements PermissionContract
 {
     use HasRoles;
     use RefreshesPermissionCache;
+    use SoftDeletes;
+    use Systems;
+    use Hrstamps;
 
     protected $guarded = [];
 
@@ -37,6 +43,18 @@ class Permission extends Model implements PermissionContract
 
         $this->guarded[] = $this->primaryKey;
         $this->table = config('permission.table_names.permissions') ?: parent::getTable();
+    }
+
+    /**
+     * The attributes that should be cast to native types.
+     *
+     * @var array
+     */
+    protected function casts(): array
+    {
+        return [
+            'lock' => 'boolean',
+        ];
     }
 
     /**

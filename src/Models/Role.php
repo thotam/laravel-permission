@@ -2,9 +2,12 @@
 
 namespace Spatie\Permission\Models;
 
+use App\Models\Traits\Hrstamps;
+use App\Models\Traits\Systems;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Permission\Contracts\Role as RoleContract;
 use Spatie\Permission\Exceptions\GuardDoesNotMatch;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
@@ -28,6 +31,9 @@ class Role extends Model implements RoleContract
 {
     use HasPermissions;
     use RefreshesPermissionCache;
+    use SoftDeletes;
+    use Systems;
+    use Hrstamps;
 
     protected $guarded = [];
 
@@ -39,6 +45,18 @@ class Role extends Model implements RoleContract
 
         $this->guarded[] = $this->primaryKey;
         $this->table = config('permission.table_names.roles') ?: parent::getTable();
+    }
+
+    /**
+     * The attributes that should be cast to native types.
+     *
+     * @var array
+     */
+    protected function casts(): array
+    {
+        return [
+            'lock' => 'boolean',
+        ];
     }
 
     /**
@@ -178,8 +196,9 @@ class Role extends Model implements RoleContract
         if ($registrar->teams) {
             $teamsKey = $registrar->teamsKey;
 
-            $query->where(fn ($q) => $q->whereNull($teamsKey)
-                ->orWhere($teamsKey, $params[$teamsKey] ?? getPermissionsTeamId())
+            $query->where(
+                fn($q) => $q->whereNull($teamsKey)
+                    ->orWhere($teamsKey, $params[$teamsKey] ?? getPermissionsTeamId())
             );
             unset($params[$teamsKey]);
         }
