@@ -2,6 +2,153 @@
 
 All notable changes to `laravel-permission` will be documented in this file
 
+## 8.5.0 - 2026-11-06
+
+### Added
+
+- Add `canAny()` and `canAll()` route macros for individual routes and route groups, by @ziadoz in #2981. `canAny()` requires any listed permission; `canAll()` requires each listed array entry. Both accept strings, backed enums, and mixed arrays.
+- Expand real authorization coverage for guests, grants and revocation, authentication guards, nested/sibling route isolation, scalar and enum inputs, and compatibility with native Laravel `can()`.
+
+### Documentation
+
+- Document safe group middleware ordering, guard selection, pipe-separated OR alternatives within an entry, and the fact that an empty `canAll([])` adds no authorization checks. Apply authentication separately when needed.
+
+No breaking changes. PHP and Laravel requirements are unchanged. Native Laravel `can()` and group middleware replacement semantics remain unchanged. Includes the released 8.4.1 disabled-teams relation fix.
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.4.1...8.5.0
+
+## 8.4.1 - 2026-11-06
+
+### Fixed
+
+- Fix querying `teams()` when teams are disabled and the database was migrated without team columns. The empty relation now uses the configured permission relation instead of joining a nonexistent team foreign key, by @AleksandrSpicyn in #2982.
+- Add regression coverage for direct queries, existence checks, eager loading, counts, and relationship existence filters with populated permissions and custom UUID models. Disabled teams stay empty without affecting ordinary permissions or roles.
+
+No breaking changes. PHP and Laravel requirements, enabled-team behavior, and route-group authorization middleware behavior are unchanged.
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.4.0...8.4.1
+
+## 8.4.0 - 2026-11-05
+
+### Added
+
+- Use the existing `role`, `permission` and `roleOrPermission` route macros on route groups, including router-first and prefixed group declarations, by @ziadoz in #2980.
+- Group macros accept the same string, array and backed-enum inputs as individual routes.
+
+### Documentation and verification
+
+- Document Laravel's normal group middleware replacement behavior: call `middleware()` before authorization macros, or use nested groups to add middleware without replacing authorization checks. Individual routes continue to append middleware.
+- Add HTTP coverage for safe ordering, nested authorization constraints, sibling isolation and the intentional distinction between group and individual-route middleware behavior.
+
+No breaking changes. PHP and Laravel requirements are unchanged.
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.3.2...8.4.0
+
+## 8.3.2 - 2026-10-19
+
+### Performance
+
+- Speed up repeated cached permission lookups by name and ID without changing lookup semantics (#2969).
+- Preserve loose comparisons, guard isolation, first-match ordering, shared model identity, and mutations of returned models. Custom models and keyed collections continue to use the original filter.
+- Keep lookup indexes tied to cache invalidation, including saved changes, deletion, explicit resets, and cache/tenant reinitialization.
+
+### Verification
+
+- Add regression coverage for numeric comparisons, custom accessors and keys, collection ordering, runtime casts, invalidation, strict missing-attribute handling, and release of cached model references.
+- Add an opt-in benchmark covering warm hits/misses, hydration, and retained memory. Indexing trades some hydration work and memory for faster repeated lookups; performance depends on the workload and is not unconditionally O(1).
+
+No breaking changes. Public APIs, persistent cache format, and PHP/Laravel support are unchanged.
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.3.1...8.3.2
+
+## 8.3.1 - 2026-10-19
+
+### Fixes
+
+- Respect the explicit guard when `hasRole()` and `hasAllRoles()` receive a role model, including model-array checks. Fixes #2977 via #2978.
+- Refresh the cache manager when reinitializing permission caches, preventing stale stores after tenant or cache configuration switches (#2973).
+- Exclude `pint.json` from distribution archives (#2972).
+
+### Maintenance
+
+- Update test tooling to Pest 5.3.3, with Pest 4.7.8 for compatible PHP 8.3 and Laravel 12 stacks.
+- Test PHP 8.3–8.6 and Laravel 12/13 with appropriate lowest and highest dependencies (#2975, #2976, #2978).
+
+No breaking changes. PHP and Laravel support are unchanged.
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.3.0...8.3.1
+
+## 8.3.0 - 2026-07-03
+
+### What's Changed
+
+* Fix `initializeCache()` not clearing in-memory perms collection on tenant/cache switch by @drbyte in https://github.com/spatie/laravel-permission/pull/2965
+* Add wiring-level test coverage for the Octane reset listener by @drbyte in https://github.com/spatie/laravel-permission/pull/2966
+
+### ALSO CHECK THE RELEASE NOTES FOR 8.2.0
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.2.0...8.3.0
+
+## 8.2.0 - 2026-07-03
+
+### What's Changed
+
+* Fire PermissionDetachedEvent when syncing permissions (symmetry with syncRoles) by @chengkangzai in https://github.com/spatie/laravel-permission/pull/2963
+* Fixed a bug where removing a role or permission from a model on one team could also remove that same assignment on other teams, when the model uses a custom pivot class (`->using(CustomPivot::class)`) on `roles()`/`permissions()` with teams enabled. (Issue #2867) by @drbyte in https://github.com/spatie/laravel-permission/pull/2961
+
+**Watch out for in your own test suite:**
+
+- If you use custom pivot model `deleting`/`deleted` hooks to react to role/permission removal under teams, those hooks were already unreliable in this scenario and remain out of scope — switch to listening for `RoleDetachedEvent` / `PermissionDetachedEvent` instead.
+- `revokePermissionTo()` can now throw `GuardDoesNotMatch` in rare cases where it previously wouldn't have, as a side effect of routing through the same guard-check used by `givePermissionTo()`. This should not affect normal usage (permissions being revoked are already guard-matched), but if your tests exercise unusual multi-guard setups, re-run them against this release.
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.1.0...8.2.0
+
+## 8.1.0 - 2026-06-27
+
+## What's Changed
+
+* Fixed: mismatched surrounding quote characters in pipe-delimited role strings are now preserved instead of stripped.  by @albertoarena in https://github.com/spatie/laravel-permission/pull/2960
+
+Fixes malformed pipe strings that start with `'` or `"` and do not end with the same quote. Normal documented usage is unchanged:
+
+```php
+hasAnyRole('writer|admin')       // same
+hasAnyRole("'writer|admin'")     // same
+hasAnyRole('"writer|admin"')     // same
+hasAnyRole("'writer|admin")      // changed: mismatched apostrophe is removed
+hasAnyRole("'writer|admin\"")    // changed: mismatched quote is removed
+
+
+
+
+
+
+
+```
+### also
+
+* docs: modernize middleware usage examples by @zainphp in https://github.com/spatie/laravel-permission/pull/2954
+* Bump actions/checkout from 6 to 7 by @dependabot[bot] in https://github.com/spatie/laravel-permission/pull/2959
+
+## New Contributors
+
+* @zainphp made their first contribution in https://github.com/spatie/laravel-permission/pull/2954
+* @albertoarena made their first contribution in https://github.com/spatie/laravel-permission/pull/2960
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/8.0.0...8.1.0
+
+## 8.0.0 - 2026-05-30
+
+* Updated contracts to allow more thorough BackedEnum support.
+
+## 7.4.2 - 2026-05-30
+
+### What's Changed
+
+* Remove stale phpstan ignore HasPermission instanceof.alwaysFalse by @YasserB94 in https://github.com/spatie/laravel-permission/pull/2952
+
+**Full Changelog**: https://github.com/spatie/laravel-permission/compare/7.4.1...7.4.2
+
 ## 7.4.1 - 2026-04-29
 
 ### What's Changed
@@ -1293,6 +1440,14 @@ The following changes are not "breaking", but worth making the updates to your a
 
 
 
+
+
+
+
+
+
+
+
 ```
 1. Also this is a good time to point out that now with v2.25.0 and v2.26.0 most permission-cache-reset scenarios may no longer be needed in your app, so it's worth reviewing those cases, as you may gain some app speed improvement by removing unnecessary cache resets.
 
@@ -1340,6 +1495,14 @@ The following changes are not "breaking", but worth making the updates to your a
 @elserole('roleB')
  // user hasRole 'roleB' but not 'roleA'
 @endrole
+
+
+
+
+
+
+
+
 
 
 

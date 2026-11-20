@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphPivot;
 use Illuminate\Support\Facades\Event;
 use Spatie\Permission\Contracts\Permission;
 use Spatie\Permission\Contracts\Role;
@@ -11,11 +13,33 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\Tests\TestSupport\TestModels\SoftDeletingUser;
 use Spatie\Permission\Tests\TestSupport\TestModels\TestRolePermissionsEnum;
 use Spatie\Permission\Tests\TestSupport\TestModels\User;
+use Spatie\Permission\Tests\TestSupport\TestModels\UserWithoutHasRoles;
+use Spatie\Permission\Traits\HasRoles;
+
+class HasPermissionsCustomPivot extends MorphPivot {}
+
+class HasPermissionsCustomPivotUser extends UserWithoutHasRoles
+{
+    use HasRoles {
+        permissions as traitPermissions;
+    }
+
+    public function permissions(): BelongsToMany
+    {
+        return $this->traitPermissions()->using(HasPermissionsCustomPivot::class);
+    }
+}
 
 it('can assign a permission to a user', function () {
     $this->testUser->givePermissionTo($this->testUserPermission);
 
     expect($this->testUser->hasPermissionTo($this->testUserPermission))->toBeTrue();
+});
+
+it('can check a permission by its id', function () {
+    $this->testUser->givePermissionTo($this->testUserPermission);
+
+    expect($this->testUser->hasPermissionTo($this->testUserPermission->id))->toBeTrue();
 });
 
 it('can assign a permission to a user with a non default guard', function () {
@@ -50,6 +74,33 @@ it('can revoke a permission from a user', function () {
     $this->testUser->revokePermissionTo($this->testUserPermission);
 
     expect($this->testUser->hasPermissionTo($this->testUserPermission))->toBeFalse();
+});
+
+it('silently ignores values that cannot be resolved to a permission', function () {
+    $this->testUser->givePermissionTo(['edit-articles', true]);
+
+    expect($this->testUser->hasPermissionTo('edit-articles'))->toBeTrue();
+    expect($this->testUser->permissions)->toHaveCount(1);
+});
+
+it('can revoke a permission when using a custom pivot class without teams', function () {
+    config()->set('auth.providers.users.model', HasPermissionsCustomPivotUser::class);
+
+    $user = HasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-permissions-without-teams@test.com']);
+
+    $user->givePermissionTo('edit-articles', 'edit-news');
+
+    expect($user->getPermissionNames()->sort()->values())
+        ->toEqual(collect(['edit-articles', 'edit-news']));
+
+    $user->revokePermissionTo('edit-articles');
+
+    expect($user->getPermissionNames()->sort()->values())
+        ->toEqual(collect(['edit-news']));
+
+    $user->syncPermissions([]);
+
+    expect($user->getPermissionNames())->toBeEmpty();
 });
 
 it('can assign and remove a permission using enums', function () {
@@ -672,6 +723,35 @@ it('fires an event when a permission is removed', function () {
             && ! $event->model->hasPermissionTo('edit-news')
             && ! $event->model->hasPermissionTo('edit-articles')
             && $event->permissionsOrIds === $permissions;
+    });
+});
+
+it('fires detach event when syncing permissions', function () {
+    Event::fake([PermissionDetachedEvent::class, PermissionAttachedEvent::class]);
+    app('config')->set('permission.events_enabled', true);
+
+    $this->testUser->givePermissionTo('edit-articles', 'edit-news');
+
+    $this->testUser->syncPermissions('edit-articles');
+
+    expect($this->testUser->hasPermissionTo('edit-articles'))->toBeTrue();
+    expect($this->testUser->hasPermissionTo('edit-news'))->toBeFalse();
+
+    Event::assertDispatched(PermissionDetachedEvent::class, function ($event) {
+        $names = collect($event->permissionsOrIds)->map(
+            fn ($permission) => is_object($permission)
+                ? $permission->name
+                : app(Permission::class)::findById($permission)->name
+        );
+
+        return $event->model instanceof User
+            && ! $event->model->hasPermissionTo('edit-news')
+            && $names->contains('edit-news');
+    });
+
+    Event::assertDispatched(PermissionAttachedEvent::class, function ($event) {
+        return $event->model instanceof User
+            && $event->model->hasPermissionTo('edit-articles');
     });
 });
 

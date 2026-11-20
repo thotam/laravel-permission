@@ -8,6 +8,8 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Foundation\Console\AboutCommand;
 use Illuminate\Routing\Route;
+use Illuminate\Routing\Router;
+use Illuminate\Routing\RouteRegistrar;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\View\Compilers\BladeCompiler;
@@ -112,6 +114,92 @@ class PermissionServiceProvider extends PackageServiceProvider
             /** @var Route $this */
             return $this->middleware('role_or_permission:'.implode('|', $rolesOrPermissions));
         });
+
+        RouteRegistrar::macro('role', function ($roles = []) {
+            $roles = Arr::wrap($roles);
+            $roles = array_map(fn ($role) => enum_value($role), $roles);
+
+            /** @var RouteRegistrar $this */
+            return $this->middleware([...($this->attributes['middleware'] ?? []), 'role:'.implode('|', $roles)]);
+        });
+
+        RouteRegistrar::macro('permission', function ($permissions = []) {
+            $permissions = Arr::wrap($permissions);
+            $permissions = array_map(fn ($permission) => enum_value($permission), $permissions);
+
+            /** @var RouteRegistrar $this */
+            return $this->middleware([...($this->attributes['middleware'] ?? []), 'permission:'.implode('|', $permissions)]);
+        });
+
+        RouteRegistrar::macro('roleOrPermission', function ($rolesOrPermissions = []) {
+            $rolesOrPermissions = Arr::wrap($rolesOrPermissions);
+            $rolesOrPermissions = array_map(fn ($item) => enum_value($item), $rolesOrPermissions);
+
+            /** @var RouteRegistrar $this */
+            return $this->middleware([...($this->attributes['middleware'] ?? []), 'role_or_permission:'.implode('|', $rolesOrPermissions)]);
+        });
+
+        Router::macro('role', function ($roles = []) {
+            $roles = Arr::wrap($roles);
+            $roles = array_map(fn ($role) => enum_value($role), $roles);
+
+            /** @var Router $this */
+            return $this->middleware('role:'.implode('|', $roles));
+        });
+
+        Router::macro('permission', function ($permissions = []) {
+            $permissions = Arr::wrap($permissions);
+            $permissions = array_map(fn ($permission) => enum_value($permission), $permissions);
+
+            /** @var Router $this */
+            return $this->middleware('permission:'.implode('|', $permissions));
+        });
+
+        Router::macro('roleOrPermission', function ($rolesOrPermissions = []) {
+            $rolesOrPermissions = Arr::wrap($rolesOrPermissions);
+            $rolesOrPermissions = array_map(fn ($item) => enum_value($item), $rolesOrPermissions);
+
+            /** @var Router $this */
+            return $this->middleware('role_or_permission:'.implode('|', $rolesOrPermissions));
+        });
+
+        Route::macro('canAny', function ($permissions = []) {
+            /** @var Route $this */
+            return $this->permission($permissions); // @phpstan-ignore method.notFound
+        });
+
+        Route::macro('canAll', function ($permissions = []) {
+            foreach (Arr::wrap($permissions) as $permission) {
+                /** @var Route $this */
+                $this->permission($permission); // @phpstan-ignore method.notFound
+            }
+
+            return $this;
+        });
+
+        RouteRegistrar::macro('canAny', function ($permissions = []) {
+            /** @var RouteRegistrar $this */
+            return $this->permission($permissions); // @phpstan-ignore method.notFound
+        });
+
+        RouteRegistrar::macro('canAll', function ($permissions = []) {
+            foreach (Arr::wrap($permissions) as $permission) {
+                /** @var RouteRegistrar $this */
+                $this->permission($permission); // @phpstan-ignore method.notFound
+            }
+
+            return $this;
+        });
+
+        Router::macro('canAny', function ($permissions = []) {
+            /** @var Router $this */
+            return $this->permission($permissions); // @phpstan-ignore method.notFound
+        });
+
+        Router::macro('canAll', function ($permissions = []) {
+            /** @var Router $this */
+            return (new RouteRegistrar($this))->canAll($permissions); // @phpstan-ignore method.notFound
+        });
     }
 
     protected function registerOctaneListener(): void
@@ -121,28 +209,20 @@ class PermissionServiceProvider extends PackageServiceProvider
         }
 
         $dispatcher = $this->app[Dispatcher::class];
-        // @phpstan-ignore-next-line
         $dispatcher->listen(function (OperationTerminated $event) {
-            // @phpstan-ignore-next-line
-            $event->sandbox->make(PermissionRegistrar::class)->setPermissionsTeamId(null);
+            $event->sandbox()->make(PermissionRegistrar::class)->setPermissionsTeamId(null);
         });
 
         if (! $this->app['config']->get('permission.register_octane_reset_listener')) {
             return;
         }
-        // @phpstan-ignore-next-line
         $dispatcher->listen(function (OperationTerminated $event) {
-            // @phpstan-ignore-next-line
-            $event->sandbox->make(PermissionRegistrar::class)->clearPermissionsCollection();
+            $event->sandbox()->make(PermissionRegistrar::class)->clearPermissionsCollection();
         });
     }
 
     protected function registerAbout(): void
     {
-        if (! class_exists(InstalledVersions::class) || ! class_exists(AboutCommand::class)) {
-            return;
-        }
-
         // array format: 'Display Text' => 'boolean-config-key name'
         $features = [
             'Teams' => 'teams',

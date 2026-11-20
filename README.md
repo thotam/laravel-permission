@@ -9,7 +9,7 @@
 <h1>Associate users with permissions and roles</h1>
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/spatie/laravel-permission.svg?style=flat-square)](https://packagist.org/packages/spatie/laravel-permission)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/spatie/laravel-permission/run-tests.yml?branch=main&label=Tests)](https://github.com/spatie/laravel-permission/actions?query=workflow%3ATests+branch%3Amain)
+[![GitHub Tests Action Status](https://github.com/spatie/laravel-permission/actions/workflows/run-tests.yml/badge.svg)](https://github.com/spatie/laravel-permission/actions?query=workflow%3ATests+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/spatie/laravel-permission.svg?style=flat-square)](https://packagist.org/packages/spatie/laravel-permission)
     
 </div>
@@ -41,7 +41,7 @@ $user->can('edit articles');
 
 ## Support us
 
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/laravel-permission.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/laravel-permission)
+[<img src="https://spatie.be/github-ad-image/laravel-permission.jpg" width="419px" />](https://spatie.be/github-ad-click/laravel-permission)
 
 We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
 

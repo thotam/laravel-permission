@@ -6,6 +6,7 @@ use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Contracts\Permission;
@@ -125,13 +126,7 @@ trait HasRoles
     public function teams(): BelongsToMany
     {
         if (! Config::teamsEnabled()) {
-            return $this->morphToMany(
-                Config::permissionModel(),
-                'model',
-                Config::modelHasRolesTable(),
-                Config::morphKey(),
-                Config::teamForeignKey()
-            )->whereRaw('1 = 0');
+            return $this->permissions()->whereRaw('1 = 0');
         }
 
         return $this->morphToMany(
@@ -209,6 +204,32 @@ trait HasRoles
             }, []);
     }
 
+    private function detachRoles(?array $roles = null): int
+    {
+        $relation = $this->roles();
+
+        if (! Config::teamsEnabled() || $this instanceof Permission || $relation->getPivotClass() === Pivot::class) {
+            return $relation->detach($roles);
+        }
+
+        // Custom pivot deletes do not include the team key, so keep deletion on the scoped pivot query.
+        $query = $relation->newPivotQuery();
+
+        if (! is_null($roles)) {
+            if (empty($roles)) {
+                return 0;
+            }
+
+            $query->whereIn($relation->getQualifiedRelatedPivotKeyName(), $roles);
+        }
+
+        $results = $query->delete();
+
+        $relation->touchIfTouching();
+
+        return $results;
+    }
+
     /**
      * Assign the given role to the model.
      *
@@ -272,7 +293,7 @@ trait HasRoles
     {
         $roles = $this->collectRoles($role);
 
-        $this->roles()->detach($roles);
+        $this->detachRoles($roles);
 
         $this->unsetRelation('roles');
 
@@ -305,7 +326,7 @@ trait HasRoles
                     $this->removeRole($currentRoles);
                 }
             } else {
-                $this->roles()->detach();
+                $this->detachRoles();
                 $this->setRelation('roles', collect());
             }
         }
@@ -350,7 +371,8 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
-            return $this->roles->contains($roles->getKeyName(), $roles->getKey());
+            return ($guard ? $this->roles->where('guard_name', $guard) : $this->roles)
+                ->contains($roles->getKeyName(), $roles->getKey());
         }
 
         if (is_array($roles)) {
@@ -402,7 +424,7 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
-            return $this->roles->contains($roles->getKeyName(), $roles->getKey());
+            return $this->hasRole($roles, $guard);
         }
 
         $roles = collect()->make($roles)->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
@@ -482,7 +504,7 @@ trait HasRoles
         }
 
         $quoteCharacter = substr($pipeString, 0, 1);
-        $endCharacter = substr($quoteCharacter, -1, 1);
+        $endCharacter = substr($pipeString, -1, 1);
 
         if ($quoteCharacter !== $endCharacter) {
             return explode('|', $pipeString);

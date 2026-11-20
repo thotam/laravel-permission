@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphPivot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Spatie\Permission\Contracts\Permission;
@@ -14,6 +16,22 @@ use Spatie\Permission\Tests\TestSupport\TestModels\Admin;
 use Spatie\Permission\Tests\TestSupport\TestModels\SoftDeletingUser;
 use Spatie\Permission\Tests\TestSupport\TestModels\TestRolePermissionsEnum;
 use Spatie\Permission\Tests\TestSupport\TestModels\User;
+use Spatie\Permission\Tests\TestSupport\TestModels\UserWithoutHasRoles;
+use Spatie\Permission\Traits\HasRoles;
+
+class HasRolesCustomPivot extends MorphPivot {}
+
+class HasRolesCustomPivotUser extends UserWithoutHasRoles
+{
+    use HasRoles {
+        roles as traitRoles;
+    }
+
+    public function roles(): BelongsToMany
+    {
+        return $this->traitRoles()->using(HasRolesCustomPivot::class);
+    }
+}
 
 it('can determine that the user does not have a role', function () {
     expect($this->testUser->hasRole('testRole'))->toBeFalse();
@@ -110,6 +128,40 @@ it('can scope a role using enums', function () {
     expect($scopedUsers3->count())->toEqual(3);
 });
 
+it('can convert pipe strings to arrays, stripping only matched surrounding quotes', function () {
+    $convert = function (string $pipeString) {
+        $method = new ReflectionMethod($this->testUser, 'convertPipeToArray');
+
+        return $method->invoke($this->testUser, $pipeString);
+    };
+
+    // Unquoted input splits on the pipe.
+    expect($convert('writer|admin'))->toBe(['writer', 'admin']);
+
+    // Matched surrounding quotes are stripped before splitting.
+    expect($convert("'writer|admin'"))->toBe(['writer', 'admin']);
+    expect($convert('"writer|admin"'))->toBe(['writer', 'admin']);
+
+    // Mismatched quotes (leading quote only) must NOT be stripped: the leading
+    // quote is part of the first value. The previous self-comparison bug made
+    // this guard dead and incorrectly stripped the quote.
+    expect($convert("'writer|admin"))->toBe(["'writer", 'admin']);
+
+    // Matching surrounding characters that aren't quotes must NOT be stripped.
+    expect($convert('xwriter|adminx'))->toBe(['xwriter', 'adminx']);
+
+    // Very short strings are just stripped of pipes and returned as a single value.
+    expect($convert('a|'))->toBe(['a']);
+    expect($convert('|'))->toBe(['']);
+});
+
+it('can check exact roles using a pipe-delimited string', function () {
+    $this->testUser->assignRole('testRole', 'testRole2');
+
+    expect($this->testUser->hasExactRoles('testRole|testRole2'))->toBeTrue();
+    expect($this->testUser->hasExactRoles('testRole|testRole2|testRole3'))->toBeFalse();
+});
+
 it('can assign and remove a role', function () {
     expect($this->testUser->hasRole('testRole'))->toBeFalse();
 
@@ -120,6 +172,26 @@ it('can assign and remove a role', function () {
     $this->testUser->removeRole('testRole');
 
     expect($this->testUser->hasRole('testRole'))->toBeFalse();
+});
+
+it('can remove a role when using a custom pivot class without teams', function () {
+    config()->set('auth.providers.users.model', HasRolesCustomPivotUser::class);
+
+    $user = HasRolesCustomPivotUser::create(['email' => 'custom-pivot-without-teams@test.com']);
+
+    $user->assignRole('testRole', 'testRole2');
+
+    expect($user->getRoleNames()->sort()->values())
+        ->toEqual(collect(['testRole', 'testRole2']));
+
+    $user->removeRole('testRole');
+
+    expect($user->getRoleNames()->sort()->values())
+        ->toEqual(collect(['testRole2']));
+
+    $user->syncRoles([]);
+
+    expect($user->getRoleNames())->toBeEmpty();
 });
 
 it('removes a role and returns roles', function () {
@@ -717,6 +789,19 @@ it('can determine that a user does not have a role from another guard', function
     expect($this->testUser->hasAnyRole('testAdminRole', $this->testAdminRole))->toBeFalse();
 });
 
+it('respects the guard when checking role models', function (?string $guard, bool $expected) {
+    $this->testUser->assignRole($this->testUserRole);
+
+    expect($this->testUser->hasRole($this->testUserRole, $guard))->toBe($expected);
+    expect($this->testUser->hasRole([$this->testUserRole], $guard))->toBe($expected);
+    expect($this->testUser->hasAllRoles($this->testUserRole, $guard))->toBe($expected);
+    expect($this->testUser->hasAllRoles([$this->testUserRole], $guard))->toBe($expected);
+})->with([
+    'no guard filter' => [null, true],
+    'matching guard' => ['web', true],
+    'different guard' => ['admin', false],
+]);
+
 it('can check against any multiple roles using multiple arguments', function () {
     $this->testUser->assignRole('testRole');
 
@@ -842,3 +927,41 @@ it('fires detach event when syncing roles', function () {
             && $event->rolesOrIds === $attachedRoleIds;
     });
 });
+
+it('can query the disabled teams relation without migrating team columns', function (bool $customModels) {
+    if ($customModels) {
+        $this->setUpCustomModels();
+    }
+
+    $this->testUser->givePermissionTo($this->testUserPermission);
+    $this->testUser->assignRole($this->testUserRole);
+
+    expect($this->testUser->teams())->toBeInstanceOf(BelongsToMany::class);
+    expect($this->testUser->teams()->get())->toBeEmpty();
+    expect($this->testUser->teams()->exists())->toBeFalse();
+    expect($this->testUser->permissions()->get()->modelKeys())->toBe([$this->testUserPermission->getKey()]);
+    expect($this->testUser->roles()->get()->modelKeys())->toBe([$this->testUserRole->getKey()]);
+})->with(['default models' => false, 'custom UUID models' => true]);
+
+it('can eagerly load disabled teams without migrating team columns', function (bool $customModels) {
+    if ($customModels) {
+        $this->setUpCustomModels();
+    }
+
+    $this->testUser->givePermissionTo($this->testUserPermission);
+    $otherUser = User::create(['email' => 'without-permissions@example.com']);
+
+    $users = User::with(['teams', 'permissions'])->withCount('teams')->get();
+
+    foreach ($users as $user) {
+        expect($user->relationLoaded('teams'))->toBeTrue();
+        expect($user->teams)->toBeEmpty();
+        expect($user->teams_count)->toBe(0);
+    }
+
+    expect($users->find($this->testUser->getKey())->permissions->modelKeys())->toBe([$this->testUserPermission->getKey()]);
+    expect($users->find($otherUser->getKey())->permissions)->toBeEmpty();
+    expect(User::whereHas('teams')->count())->toBe(0);
+    expect(User::whereDoesntHave('teams')->get()->modelKeys())
+        ->toEqualCanonicalizing([$this->testUser->getKey(), $otherUser->getKey()]);
+})->with(['default models' => false, 'custom UUID models' => true]);

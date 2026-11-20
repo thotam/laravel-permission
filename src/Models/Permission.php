@@ -4,6 +4,7 @@ namespace Spatie\Permission\Models;
 
 use App\Models\Traits\Hrstamps;
 use App\Models\Traits\Systems;
+use BackedEnum;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -17,6 +18,8 @@ use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\Support\Config;
 use Spatie\Permission\Traits\HasRoles;
 use Spatie\Permission\Traits\RefreshesPermissionCache;
+
+use function Illuminate\Support\enum_value;
 
 /**
  * @property int|string $id
@@ -67,6 +70,8 @@ class Permission extends Model implements PermissionContract
     public static function create(array $attributes = [])
     {
         $attributes['guard_name'] ??= Guard::getDefaultName(static::class);
+
+        $attributes['name'] = enum_value($attributes['name']);
 
         $permission = static::getPermission(['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']]);
 
@@ -137,8 +142,9 @@ class Permission extends Model implements PermissionContract
      *
      * @throws PermissionDoesNotExist
      */
-    public static function findByName(string $name, ?string $guardName = null): PermissionContract
+    public static function findByName(BackedEnum|string $name, ?string $guardName = null): PermissionContract
     {
+        $name = enum_value($name);
         $guardName ??= Guard::getDefaultName(static::class);
         $permission = static::getPermission(['name' => $name, 'guard_name' => $guardName]);
         if (! $permission) {
@@ -172,8 +178,9 @@ class Permission extends Model implements PermissionContract
      *
      * @return PermissionContract|Permission
      */
-    public static function findOrCreate(string $name, ?string $guardName = null): PermissionContract
+    public static function findOrCreate(BackedEnum|string $name, ?string $guardName = null): PermissionContract
     {
+        $name = enum_value($name);
         $guardName ??= Guard::getDefaultName(static::class);
         $permission = static::getPermission(['name' => $name, 'guard_name' => $guardName]);
 

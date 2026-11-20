@@ -26,7 +26,7 @@ public function up()
 }
 ```
 
-Semi-Related article: [Adding Extra Fields To Pivot Table](https://quickadminpanel.com/blog/laravel-belongstomany-add-extra-fields-to-pivot-table/) (video)
+Semi-Related article: [Adding Extra Fields To Pivot Table](https://web.archive.org/web/20210525140651/https://blog.quickadminpanel.com/laravel-belongstomany-add-extra-fields-to-pivot-table/) (video)
 
 ## Adding a description to roles and permissions
 A common question is "how do I add a description for my roles or permissions?".
@@ -95,3 +95,13 @@ In the rare case that you have need to REPLACE the existing `Role` or `Permissio
 - Your `Permission` model needs to implement the `Spatie\Permission\Contracts\Permission` contract
 - You need to update `config/permission.php` to specify your namespaced model
 
+### Tips
+
+If you override `findByName`, `findOrCreate`, or `create` on your model, you can use Laravel's `enum_value()` helper to resolve `BackedEnum` values:
+ ```php
+ public static function findByName(BackedEnum|string $name, ?string $guardName = null): self
+ {
+     $name = enum_value($name);
+     // ...
+ }
+ ```

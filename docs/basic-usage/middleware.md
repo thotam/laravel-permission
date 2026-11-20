@@ -8,10 +8,13 @@ weight: 11
 For checking against a single permission (see Best Practices) using `can`, you can use the built-in Laravel middleware provided by `\Illuminate\Auth\Middleware\Authorize::class` like this:
 
 ```php
-Route::group(['middleware' => ['can:publish articles']], function () { ... });
+use Illuminate\Support\Facades\Route;
+
+Route::middleware('can:publish articles')->get(...);
 
 // or with static method
-Route::group(['middleware' => [\Illuminate\Auth\Middleware\Authorize::using('publish articles')]], function () { ... });
+use Illuminate\Auth\Middleware\Authorize;
+Route::middleware(Authorize::using('publish articles'))->get(...);
 ```
 
 ## Package Middleware
@@ -25,13 +28,21 @@ You can register their aliases for easy reference elsewhere in your app:
 Open `/bootstrap/app.php` and register them there:
 
 ```php
+// ...
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    // ...
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
     })
+    // ...
 ```
 
 ### Middleware Priority
@@ -47,42 +58,132 @@ After you have registered the aliases as shown above, you can use them in your R
 ### Routes
 
 ```php
-Route::group(['middleware' => ['role:manager']], function () { ... });
-Route::group(['middleware' => ['permission:publish articles']], function () { ... });
-Route::group(['middleware' => ['role_or_permission:publish articles']], function () { ... });
+// You can apply middleware to a group of routes:
+Route::middleware('role:manager')->group(function () {
+    // ...
+});
+
+// Or, for individual routes, apply the middleware directly:
+Route::middleware('role:manager')->get('/admin', ...);
+Route::middleware('permission:publish articles')->get('/articles/create', ...);
+Route::middleware('role_or_permission:publish articles')->get('/articles/{id}', ...);
 
 // for a specific guard:
-Route::group(['middleware' => ['role:manager,api']], function () { ... });
+Route::middleware('role:manager,api')->get('/api/admin', ...);
 
 // multiple middleware
-Route::group(['middleware' => ['role:manager','permission:publish articles']], function () { ... });
+Route::middleware([
+    'role:manager',
+    'permission:publish articles'
+])->get('/admin/publish', ...);
 ```
 
 You can specify multiple roles or permissions with a `|` (pipe) character, which is treated as `OR`:
 
 ```php
-Route::group(['middleware' => ['role:manager|writer']], function () { ... });
-Route::group(['middleware' => ['permission:publish articles|edit articles']], function () { ... });
-Route::group(['middleware' => ['role_or_permission:manager|edit articles']], function () { ... });
+Route::middleware('role:manager|writer')
+Route::middleware('permission:publish articles|edit articles')
+Route::middleware('role_or_permission:manager|edit articles')
 
 // for a specific guard
-Route::group(['middleware' => ['permission:publish articles|edit articles,api']], function () { ... });
+Route::middleware('permission:publish articles|edit articles,api')
 ```
+
+The package also registers `role`, `permission` and `roleOrPermission` route macros, which accept a string, an array or a backed enum. They can be used on individual routes and on route groups:
+
+```php
+Route::get('/admin', ...)->role('manager');
+Route::get('/articles/create', ...)->permission(['publish articles', 'edit articles']);
+
+Route::permission('publish articles')->group(function () {
+    // ...
+});
+
+Route::prefix('admin')->middleware('auth')->role('manager')->group(function () {
+    // ...
+});
+```
+
+The `canAny` and `canAll` macros check a list of permissions, requiring any one of them or all of them. They work on individual routes and groups, accepting strings, backed enums or arrays containing either:
+
+```php
+Route::get('/articles', ...)->canAny(['publish articles', 'edit articles']);
+Route::get('/articles', ...)->canAll(['publish articles', 'edit articles']);
+
+Route::middleware('auth:admin')->canAll(['publish articles', 'edit articles'])->group(function () {
+    // Requires both permissions for the authenticated admin.
+});
+```
+
+These macros use this package's permission middleware; Laravel's native `can()` method remains unchanged. `canAny()` is an alias for `permission()`. `canAll()` adds a permission middleware check for each array entry, so use separate entries to require separate permissions: a pipe-separated string still means OR within that entry. An empty `canAll([])` adds no checks; apply authentication middleware separately when needed.
+
+**Middleware order on groups:** Call `middleware()` before `role()`, `permission()`, `roleOrPermission()`, `canAny()` or `canAll()`. Laravel replaces a route registrar's middleware when `middleware()` is called again, so calling it after a group macro removes the role or permission check:
+
+```php
+Route::middleware('auth')->role('manager')->permission('publish articles')->group(function () {
+    // Requires authentication, the manager role and the publish articles permission.
+});
+```
+
+To add more middleware without replacing the group's authorization checks, use a nested group:
+
+```php
+Route::middleware('auth')->role('manager')->group(function () {
+    Route::middleware('throttle:60,1')->group(function () {
+        // Requires authentication, the manager role and the rate limit.
+    });
+});
+```
+
+This is Laravel's normal route-group behavior. Individual routes, such as `Route::get(...)->role('manager')->middleware('auth')`, continue to append middleware rather than replace it.
 
 ### Controllers
 
 If your controller implements the `HasMiddleware` interface, you can register [controller middleware](https://laravel.com/docs/12.x/controllers#controller-middleware) using the `middleware()` method:
 
-```php
-public static function middleware(): array
+```php 
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+
+class ArticleController implements HasMiddleware
 {
-    return [
-        // examples with aliases, pipe-separated names, guards, etc:
-        'role_or_permission:manager|edit articles',
-        new Middleware('role:author', only: ['index']),
-        new Middleware(\Spatie\Permission\Middleware\RoleMiddleware::using('manager'), except:['show']),
-        new Middleware(\Spatie\Permission\Middleware\PermissionMiddleware::using('delete records,api'), only:['destroy']),
-    ];
+    public static function middleware(): array
+    {
+        return [
+            // examples with aliases, pipe-separated names, guards, etc:
+            'role_or_permission:manager|edit articles',
+            new Middleware('role:author', only: ['index']),
+            new Middleware(RoleMiddleware::using('manager'), except:['show']),
+            new Middleware(PermissionMiddleware::using('delete records,api'), only:['destroy']),
+        ];
+    }
+}
+```
+
+Alternatively, you can use the [middleware attribute](https://laravel.com/docs/13.x/controllers#middleware-attributes) or the [authorization attribute](https://laravel.com/docs/13.x/controllers#authorization-attributes) to apply middleware to your controller classes or methods:
+
+```php
+use Illuminate\Routing\Attributes\Controllers\Middleware;
+use Illuminate\Routing\Attributes\Controllers\Authorize;
+
+use Spatie\Permission\Middleware\RoleMiddleware;
+
+class ArticleController
+{
+    #[Middleware(RoleMiddleware::using('manager'), only: ['index'])]
+    public function index()
+    {
+        // ...
+    }
+
+    #[Authorize('publish articles')]
+    public function store()
+    {
+        // ...
+    }
 }
 ```
 
@@ -93,8 +194,16 @@ You can also use Laravel's Model Policy feature in your controller methods. See 
 All of the middleware can also be applied by calling the static `using` method, which accepts either an array or a `|`-separated string as input.
 
 ```php
-Route::group(['middleware' => [\Spatie\Permission\Middleware\RoleMiddleware::using('manager')]], function () { ... });
-Route::group(['middleware' => [\Spatie\Permission\Middleware\PermissionMiddleware::using('publish articles|edit articles')]], function () { ... });
-Route::group(['middleware' => [\Spatie\Permission\Middleware\RoleOrPermissionMiddleware::using(['manager', 'edit articles'])]], function () { ... });
-```
+use Spatie\Permission\Middleware\RoleMiddleware;
+Route::middleware(RoleMiddleware::using('manager'))
 
+use Spatie\Permission\Middleware\PermissionMiddleware;
+Route::middleware(
+    PermissionMiddleware::using('publish articles|edit articles')
+)
+
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+Route::middleware(
+    RoleOrPermissionMiddleware::using(['manager', 'edit articles'])
+)
+```
