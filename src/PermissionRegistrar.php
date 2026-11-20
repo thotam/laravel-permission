@@ -2,6 +2,7 @@
 
 namespace Spatie\Permission;
 
+use Closure;
 use DateInterval;
 use Illuminate\Cache\CacheManager;
 use Illuminate\Contracts\Auth\Access\Authorizable;
@@ -58,6 +59,11 @@ class PermissionRegistrar
     private array $returnedPermissions = [];
 
     private bool $isLoadingPermissions = false;
+
+    protected static ?Closure $cacheScopeResolver = null;
+
+    // Scoped cache key the in-memory permissions were loaded under.
+    private ?string $loadedCacheKey = null;
 
     public function __construct(CacheManager $cacheManager)
     {
@@ -145,16 +151,62 @@ class PermissionRegistrar
     }
 
     /**
-     * Flush the cache.
+     * Partition the permission cache by a runtime scope (e.g. the current site or tenant).
+     * The resolver returns the scope; null or an empty string means the unscoped key.
+     */
+    public static function resolveCacheScopeUsing(?Closure $resolver): void
+    {
+        static::$cacheScopeResolver = $resolver;
+    }
+
+    public function getCacheScope(): ?string
+    {
+        if (! static::$cacheScopeResolver) {
+            return null;
+        }
+
+        $scope = (string) (static::$cacheScopeResolver)();
+
+        return $scope === '' ? null : $scope;
+    }
+
+    public function getCacheKey(): string
+    {
+        $scope = $this->getCacheScope();
+
+        return $scope === null ? $this->cacheKey : $this->cacheKey.'.'.$scope;
+    }
+
+    /**
+     * Drop in-memory data loaded under another scope.
+     */
+    private function syncCacheScope(): string
+    {
+        $key = $this->getCacheKey();
+
+        if ($this->loadedCacheKey !== null && $this->loadedCacheKey !== $key) {
+            $this->permissions = null;
+            $this->permissionsLookupIndex = [];
+            $this->returnedPermissions = [];
+            $this->wildcardPermissionsIndex = [];
+            $this->loadedCacheKey = null;
+        }
+
+        return $key;
+    }
+
+    /**
+     * Flush the cache of the current scope.
      */
     public function forgetCachedPermissions(): bool
     {
         $this->permissions = null;
         $this->permissionsLookupIndex = [];
         $this->returnedPermissions = [];
+        $this->loadedCacheKey = null;
         $this->forgetWildcardPermissionIndex();
 
-        return $this->cache->forget($this->cacheKey);
+        return $this->cache->forget($this->getCacheKey());
     }
 
     public function forgetWildcardPermissionIndex(?Model $record = null): void
@@ -170,6 +222,8 @@ class PermissionRegistrar
 
     public function getWildcardPermissionIndex(Model $record): array
     {
+        $this->syncCacheScope();
+
         if (isset($this->wildcardPermissionsIndex[$record::class][$record->getKey()])) {
             return $this->wildcardPermissionsIndex[$record::class][$record->getKey()];
         }
@@ -189,6 +243,7 @@ class PermissionRegistrar
         $this->returnedPermissions = [];
         $this->wildcardPermissionsIndex = [];
         $this->isLoadingPermissions = false;
+        $this->loadedCacheKey = null;
     }
 
     /**
@@ -200,6 +255,8 @@ class PermissionRegistrar
      */
     private function loadPermissions(int $retries = 0): void
     {
+        $cacheKey = $this->syncCacheScope();
+
         // First check (without lock) - fast path for already loaded permissions
         if ($this->permissions) {
             return;
@@ -223,7 +280,7 @@ class PermissionRegistrar
 
         try {
             $this->permissions = $this->cache->remember(
-                $this->cacheKey, $this->cacheExpirationTime, fn () => $this->getSerializedPermissionsForCache()
+                $cacheKey, $this->cacheExpirationTime, fn () => $this->getSerializedPermissionsForCache()
             );
 
             $this->alias = $this->permissions['alias'];
@@ -235,6 +292,8 @@ class PermissionRegistrar
             $this->indexPermissionsForLookup();
 
             $this->cachedRoles = $this->alias = $this->except = [];
+
+            $this->loadedCacheKey = $cacheKey;
         } finally {
             // Always release the loading flag, even if an exception occurs
             $this->isLoadingPermissions = false;

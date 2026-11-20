@@ -2,6 +2,10 @@
 
 All notable changes to `laravel-permission` will be documented in this file
 
+## Unreleased (thotam fork)
+
+* Add `PermissionRegistrar::resolveCacheScopeUsing()` to partition the permission cache by a runtime scope (site, tenant). The cache key becomes `{cache.key}.{scope}` and in-memory permissions are reloaded when the scope changes. Without a resolver the behavior is unchanged.
+
 ## 8.5.0 - 2026-11-06
 
 ### Added

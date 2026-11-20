@@ -102,6 +102,17 @@ app()->make(\Spatie\Permission\PermissionRegistrar::class)->initializeCache();
 `initializeCache()` also discards the registrar's in-memory permissions/roles collection (equivalent to `clearPermissionsCollection()`), so the next permission check reloads from the newly-configured cache/tenant instead of reusing the previous tenant's already-loaded collection.
 
 
+### Cache Scope (fork addition)
+
+When one process serves several scopes that see different permissions (e.g. sites sharing a database through a global scope), register a resolver, typically in a service provider's `boot()`:
+
+```php
+\Spatie\Permission\PermissionRegistrar::resolveCacheScopeUsing(fn () => config('app.site'));
+```
+
+The cache key becomes `spatie.permission.cache.{scope}`; whenever the resolved scope changes, the in-memory permissions, lookup index and wildcard index are dropped and reloaded from that scope's key. This is the per-tenant cache namespace described in [Global scopes and multitenancy](#global-scopes-and-multitenancy). `forgetCachedPermissions()` and `permission:cache-reset` flush only the current scope's key. A `null` or empty scope uses the plain key, and with no resolver the behavior is the same as upstream.
+
+
 ### Custom Cache Store
 
 You can configure the package to use any of the Cache Stores you've configured in Laravel's `config/cache.php`. This way you can point this package's caching to its own specified resource.
