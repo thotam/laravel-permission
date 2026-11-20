@@ -128,12 +128,15 @@ it('forgets only the cache key of the current scope', function () {
         ->and($cache->has('spatie.permission.cache.site-a'))->toBeTrue();
 });
 
-it('resets the cache of the current scope from the artisan command', function () {
+it('resets only the current scope cache key from the artisan command', function () {
     useScopeOf($this);
-    $this->registrar->getPermissions();
+    $cache = $this->registrar->getCacheRepository();
+    $cache->put('spatie.permission.cache.site-a', 'cached-a');
+    $cache->put('spatie.permission.cache.site-b', 'cached-b');
 
     Artisan::call('permission:cache-reset');
 
     expect(Artisan::output())->toContain('Permission cache flushed.')
-        ->and($this->registrar->getCacheRepository()->has('spatie.permission.cache.site-a'))->toBeFalse();
+        ->and($cache->has('spatie.permission.cache.site-a'))->toBeFalse()
+        ->and($cache->get('spatie.permission.cache.site-b'))->toBe('cached-b');
 });
