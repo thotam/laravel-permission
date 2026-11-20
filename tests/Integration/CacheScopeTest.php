@@ -101,12 +101,13 @@ it('finds permissions by name and id against the current scope', function () {
 
 it('drops the lookup index and returned models when the scope changes', function () {
     useScopeOf($this);
-    $this->registrar->getPermissions();
+    $permission = $this->registrar->getPermissions()->first();
+    $this->registrar->getPermissions(['name' => $permission->name, 'guard_name' => $permission->guard_name], true);
 
     $index = new ReflectionProperty($this->registrar, 'permissionsLookupIndex');
     $returned = new ReflectionProperty($this->registrar, 'returnedPermissions');
-    $index->setValue($this->registrar, ['name' => ['web' => ['stale' => 0]]]);
-    $returned->setValue($this->registrar, [1 => ['stale']]);
+    expect($index->getValue($this->registrar))->not->toBe([])
+        ->and($returned->getValue($this->registrar))->not->toBe([]);
 
     $this->scope = 'site-b';
     (new ReflectionMethod($this->registrar, 'syncCacheScope'))->invoke($this->registrar);

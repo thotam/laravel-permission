@@ -473,3 +473,41 @@ class LookupPermission extends SpatiePermission
 }
 
 class LookupPermissionCollection extends Collection {}
+
+it('builds the lookup index for the fork permission model despite its extra casts', function () {
+    $registrar = app(PermissionRegistrar::class);
+    $permission = $registrar->getPermissions()->first();
+
+    expect($permission->getCasts())->toHaveKeys(['lock', 'deleted_at']);
+
+    $registrar->getPermissions(['name' => $permission->name, 'guard_name' => $permission->guard_name], true);
+
+    $index = (new ReflectionProperty($registrar, 'permissionsLookupIndex'))->getValue($registrar);
+
+    expect($index['name'][$permission->guard_name][$permission->name] ?? null)->not->toBeNull()
+        ->and($index['id'][$permission->guard_name][$permission->getKey()] ?? null)->not->toBeNull();
+});
+
+it('treats casts or accessors on indexed attributes as unsafe for the lookup index', function () {
+    $registrar = app(PermissionRegistrar::class);
+    $check = new ReflectionMethod($registrar, 'hasIndexSafeAttributes');
+
+    $castName = new class extends SpatiePermission
+    {
+        protected function casts(): array
+        {
+            return ['name' => 'string'];
+        }
+    };
+    $accessorName = new class extends SpatiePermission
+    {
+        public function getNameAttribute($value): string
+        {
+            return strtoupper($value);
+        }
+    };
+
+    expect($check->invoke($registrar, new SpatiePermission))->toBeTrue()
+        ->and($check->invoke($registrar, $castName))->toBeFalse()
+        ->and($check->invoke($registrar, $accessorName))->toBeFalse();
+});

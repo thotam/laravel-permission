@@ -347,7 +347,7 @@ class PermissionRegistrar
 
         foreach ($this->permissions as $position => $permission) {
             // Custom accessors and casts may depend on state outside the model.
-            if ($permission::class !== PermissionModel::class || $permission->getCasts() !== ['id' => 'int']) {
+            if ($permission::class !== PermissionModel::class || ! $this->hasIndexSafeAttributes($permission)) {
                 return;
             }
 
@@ -411,7 +411,7 @@ class PermissionRegistrar
         // Returned models are shared and mutable, even after syncOriginal().
         // Checking only the candidate would miss an earlier model renamed to match it.
         foreach ($this->returnedPermissions as [$permission, $attributes]) {
-            if ($permission->getCasts() !== ['id' => 'int'] || $permission->getAttributes() !== $attributes) {
+            if (! $this->hasIndexSafeAttributes($permission) || $permission->getAttributes() !== $attributes) {
                 $this->permissionsLookupIndex = $this->returnedPermissions = [];
 
                 return false;
@@ -419,6 +419,27 @@ class PermissionRegistrar
         }
 
         return $position === null ? null : $this->permissions[$position];
+    }
+
+    /**
+     * The index reads raw id, name and guard_name, so only casts or accessors on those
+     * attributes can make it disagree with the filter; casts on other columns are safe.
+     */
+    private function hasIndexSafeAttributes(Model $permission): bool
+    {
+        $casts = $permission->getCasts();
+
+        if (($casts['id'] ?? null) !== 'int' || array_key_exists('name', $casts) || array_key_exists('guard_name', $casts)) {
+            return false;
+        }
+
+        foreach (['id', 'name', 'guard_name'] as $attribute) {
+            if ($permission->hasGetMutator($attribute) || $permission->hasAttributeGetMutator($attribute)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function rememberReturnedPermission(Model $permission): void
