@@ -58,7 +58,7 @@ class Role extends Model implements RoleContract
     /**
      * The attributes that should be cast to native types.
      *
-     * @var array
+     * @return array<string, string>
      */
     protected function casts(): array
     {

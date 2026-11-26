@@ -21,3 +21,5 @@ parameters:
         - '#Access to an undefined property Illuminate\\Database\\Eloquent\\Model::\$roles#'
         # unreachable code in trait contexts is intentional — traits are used in multiple model contexts:
         - '#Unreachable statement - code above always terminates#'
+        # schema macros registered by the host app (hrstamps, system):
+        - '#Call to an undefined method Illuminate\\Database\\Schema\\Blueprint::(hrstamps|system)\(\)#'
