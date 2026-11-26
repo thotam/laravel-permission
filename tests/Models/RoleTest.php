@@ -268,8 +268,8 @@ it('does not treat string "0" as empty when assigning role', function () {
 
 it('creates a new role with updateOrCreate when it does not exist', function () {
     $role = app(Role::class)::updateOrCreate([
-        'name'        => 'new-role',
-        'guard_name'  => 'web',
+        'name' => 'new-role',
+        'guard_name' => 'web',
         'description' => 'Mô tả mới',
     ]);
 
@@ -283,8 +283,8 @@ it('updates an existing role with updateOrCreate', function () {
     $original = app(Role::class)->create(['name' => 'existing-role']);
 
     $updated = app(Role::class)::updateOrCreate([
-        'name'        => 'existing-role',
-        'guard_name'  => 'web',
+        'name' => 'existing-role',
+        'guard_name' => 'web',
         'description' => 'Đã cập nhật',
     ]);
 
@@ -302,8 +302,8 @@ it('restores a soft-deleted role with updateOrCreate', function () {
     expect(app(Role::class)->where('name', 'deleted-role')->exists())->toBeFalse();
 
     $restored = app(Role::class)::updateOrCreate([
-        'name'        => 'deleted-role',
-        'guard_name'  => 'web',
+        'name' => 'deleted-role',
+        'guard_name' => 'web',
         'description' => 'Đã khôi phục',
     ]);
 

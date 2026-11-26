@@ -37,10 +37,10 @@ class Role extends Model implements RoleContract
 {
     use HasAssignedModels;
     use HasPermissions;
+    use Hrstamps;
     use RefreshesPermissionCache;
     use SoftDeletes;
     use Systems;
-    use Hrstamps;
 
     protected $guarded = [];
 
@@ -242,7 +242,7 @@ class Role extends Model implements RoleContract
             $teamsKey = $registrar->teamsKey;
 
             $query->where(
-                fn($q) => $q->whereNull($teamsKey)
+                fn ($q) => $q->whereNull($teamsKey)
                     ->orWhere($teamsKey, $params[$teamsKey] ?? getPermissionsTeamId())
             );
             unset($params[$teamsKey]);

@@ -100,8 +100,8 @@ it('does not treat string "0" as empty when giving permission', function () {
 
 it('creates a new permission with updateOrCreate when it does not exist', function () {
     $permission = app(Permission::class)::updateOrCreate([
-        'name'        => 'new-permission',
-        'guard_name'  => 'web',
+        'name' => 'new-permission',
+        'guard_name' => 'web',
         'description' => 'Mô tả mới',
     ]);
 
@@ -115,8 +115,8 @@ it('updates an existing permission with updateOrCreate', function () {
     $original = app(Permission::class)->create(['name' => 'existing-permission']);
 
     $updated = app(Permission::class)::updateOrCreate([
-        'name'        => 'existing-permission',
-        'guard_name'  => 'web',
+        'name' => 'existing-permission',
+        'guard_name' => 'web',
         'description' => 'Đã cập nhật',
     ]);
 
@@ -134,8 +134,8 @@ it('restores a soft-deleted permission with updateOrCreate', function () {
     expect(app(Permission::class)->where('name', 'deleted-permission')->exists())->toBeFalse();
 
     $restored = app(Permission::class)::updateOrCreate([
-        'name'        => 'deleted-permission',
-        'guard_name'  => 'web',
+        'name' => 'deleted-permission',
+        'guard_name' => 'web',
         'description' => 'Đã khôi phục',
     ]);
 

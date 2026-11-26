@@ -34,10 +34,10 @@ use function Illuminate\Support\enum_value;
 class Permission extends Model implements PermissionContract
 {
     use HasRoles;
+    use Hrstamps;
     use RefreshesPermissionCache;
     use SoftDeletes;
     use Systems;
-    use Hrstamps;
 
     protected $guarded = [];
 
