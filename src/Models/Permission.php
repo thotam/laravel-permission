@@ -7,6 +7,7 @@ use App\Models\Traits\Systems;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -104,6 +105,14 @@ class Permission extends Model implements PermissionContract
         }
 
         return $permission;
+    }
+
+    /**
+     * A permission can belong to one permission group.
+     */
+    public function permissionGroup(): BelongsTo
+    {
+        return $this->belongsTo(Config::permissionGroupModel(), 'permission_group_id');
     }
 
     /**

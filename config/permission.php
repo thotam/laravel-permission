@@ -2,6 +2,7 @@
 
 use Spatie\Permission\DefaultTeamResolver;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\PermissionGroup;
 use Spatie\Permission\Models\Role;
 
 return [
@@ -29,6 +30,13 @@ return [
          */
 
         'role' => Role::class,
+
+        /*
+         * The model used to group permissions into a two-level tree
+         * (parent group, child group). Permissions point to a group
+         * through `permission_group_id`.
+         */
+        'permission_group' => PermissionGroup::class,
 
         /*
          * When using the "Teams" feature from this package, we need to know which
@@ -62,6 +70,12 @@ return [
          */
 
         'permissions' => 'permissions',
+
+        /*
+         * The table used to store the permission groups.
+         */
+
+        'permission_groups' => 'permission_groups',
 
         /*
          * When using the "HasPermissions" trait from this package, we need to know which

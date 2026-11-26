@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Spatie\Permission\Contracts\Wildcard;
 use Spatie\Permission\Exceptions\TeamModelNotConfigured;
 use Spatie\Permission\Exceptions\TeamsNotEnabled;
+use Spatie\Permission\Models\PermissionGroup;
 use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\WildcardPermission;
 
@@ -62,6 +63,19 @@ class Config
     public static function permissionsTable(): string
     {
         return config('permission.table_names.permissions');
+    }
+
+    public static function permissionGroupsTable(): string
+    {
+        return config('permission.table_names.permission_groups', 'permission_groups');
+    }
+
+    /**
+     * @return class-string<Model>
+     */
+    public static function permissionGroupModel(): string
+    {
+        return config('permission.models.permission_group', PermissionGroup::class);
     }
 
     public static function morphKey(): string
