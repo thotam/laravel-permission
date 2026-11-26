@@ -2,6 +2,7 @@
 
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\PermissionGroup;
+use Spatie\Permission\Models\Role;
 
 it('loads parent, children and permissions', function () {
     $root = PermissionGroup::create(['key' => 'root', 'title' => 'Root', 'order' => 0]);
@@ -24,4 +25,13 @@ it('uses configured table name', function () {
     config()->set('permission.table_names.permission_groups', 'custom_permission_groups');
 
     expect((new PermissionGroup)->getTable())->toBe('custom_permission_groups');
+});
+
+it('links roles to a permission group', function () {
+    $root = PermissionGroup::create(['key' => 'root-roles', 'title' => 'Root', 'order' => 0]);
+    $role = Role::create(['name' => 'grouped-role', 'permission_group_id' => $root->id]);
+    Role::create(['name' => 'ungrouped-role']);
+
+    expect($role->permissionGroup->is($root))->toBeTrue()
+        ->and($root->roles->pluck('name')->all())->toBe(['grouped-role']);
 });

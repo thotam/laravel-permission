@@ -62,4 +62,9 @@ class PermissionGroup extends Model
     {
         return $this->hasMany(Config::permissionModel(), 'permission_group_id');
     }
+
+    public function roles(): HasMany
+    {
+        return $this->hasMany(Config::roleModel(), 'permission_group_id');
+    }
 }

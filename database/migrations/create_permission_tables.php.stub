@@ -69,7 +69,7 @@ return new class extends Migration
         /**
          * See `docs/prerequisites.md` for suggested lengths on 'name' and 'guard_name' if "1071 Specified key was too long" errors are encountered.
          */
-        Schema::create($tableNames['roles'], static function (Blueprint $table) use ($teams, $columnNames) {
+        Schema::create($tableNames['roles'], static function (Blueprint $table) use ($teams, $columnNames, $tableNames) {
             $table->id(); // role id
             if ($teams || config('permission.testing')) { // permission.testing is a fix for sqlite testing
                 $table->unsignedBigInteger($columnNames['team_foreign_key'])->nullable();
@@ -80,6 +80,7 @@ return new class extends Migration
             $table->string('guard_name');
             $table->longtext('description')->nullable()->default(null);
             $table->string('group')->nullable()->default(null);
+            $table->unsignedBigInteger('permission_group_id')->nullable()->default(null);
             $table->string('vendor')->nullable()->default(null);
             $table->integer('order')->nullable()->default(null);
             $table->boolean('lock')->nullable()->default(null);
@@ -87,6 +88,11 @@ return new class extends Migration
             $table->softDeletes();
             $table->hrstamps();
             $table->system();
+
+            $table->foreign('permission_group_id')
+                ->references('id')
+                ->on($tableNames['permission_groups'] ?? 'permission_groups')
+                ->nullOnDelete();
             if ($teams || config('permission.testing')) {
                 $table->unique([$columnNames['team_foreign_key'], 'name', 'guard_name', 'system']);
             } else {
